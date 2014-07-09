@@ -476,7 +476,7 @@ module DAV4Rack
           :save_with => Nokogiri::XML::Node::SaveOptions::AS_XML
         )
       end
-      response["Content-Type"] = 'text/xml; charset="utf-8"'
+      response["Content-Type"] = 'application/xml; charset=utf-8'
       response["Content-Length"] = response.body.size.to_s
     end
       
