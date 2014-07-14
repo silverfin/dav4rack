@@ -470,6 +470,16 @@ module DAV4Rack
         (request.respond_to?(:user_agent) ? request.user_agent : request.env['HTTP_USER_AGENT']).to_s =~ regexp
       end
     end
+
+    # Callback function that adds additional properties to the propfind REQUEST
+    # These properties will then be parsed and processed as though they were sent
+    # by the client. This makes sure we can add whatever property we want
+    # to the response and make it look like the client asked for them.
+    def propfind_add_additional_properties(xml, properties)
+      # Default implementation doesn't need to add anything
+      properties
+    end
+
     protected
 
     # Returns authentication credentials if available in form of [username,password]

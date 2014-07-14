@@ -217,7 +217,11 @@ module DAV4Rack
               else
                 xml.href url_format(resource)
               end
-              propstats(xml, get_properties(resource, properties.empty? ? resource.properties : properties))
+              process_properties = properties.empty? ? resource.properties : properties
+              # Add additional properties to the properties list asked by the client
+              process_properties = resource.propfind_add_additional_properties(xml, process_properties)
+
+              propstats(xml, get_properties(resource, process_properties))
             end
           end
         end
