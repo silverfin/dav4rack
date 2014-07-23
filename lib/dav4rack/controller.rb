@@ -98,7 +98,7 @@ module DAV4Rack
         resource.lock_check if resource.supports_locking?
         status = resource.put(request, response)
         response['Location'] = "#{scheme}://#{host}:#{port}#{url_format(resource)}" if status == Created
-        response.body = response['Location']
+        response.body = response['Location'] || ''
         status
       end
     end
