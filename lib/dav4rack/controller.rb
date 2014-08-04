@@ -131,7 +131,6 @@ module DAV4Rack
           end
         end
       else
-        response['Location'] = gen_url
         status
       end
     end
@@ -165,7 +164,6 @@ module DAV4Rack
             return Conflict unless depth.is_a?(Symbol) || depth > 1
             status = resource.move(dest, overwrite)
           end
-          response['Location'] = "#{scheme}://#{host}:#{port}#{url_format(dest)}" if status == Created
           # RFC 2518
           if collection
             multistatus do |xml|
