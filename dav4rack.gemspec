@@ -20,7 +20,8 @@ Gem::Specification.new do |s|
 LICENSE
 dav4rack.gemspec
 lib/dav4rack.rb
-lib/dav4rack/file_resource.rb
+lib/dav4rack/resources/file_resource.rb
+lib/dav4rack/resources/mongo_resource.rb
 lib/dav4rack/handler.rb
 lib/dav4rack/controller.rb
 lib/dav4rack/http_status.rb
