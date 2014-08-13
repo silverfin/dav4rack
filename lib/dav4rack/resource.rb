@@ -16,6 +16,8 @@ module DAV4Rack
   end
 
   class Resource
+    include DAV4Rack::Utils
+
     attr_reader :path, :options, :public_path, :request,
       :response, :propstat_relative_path, :root_xml_attributes
     attr_accessor :user
@@ -440,6 +442,107 @@ module DAV4Rack
       <th class="mtime">Last Modified</th> </tr> %s </table> <hr /> </body></html>'
     end
 
+    def properties_xml(xml, process_properties)
+      xml.response do
+        unless(propstat_relative_path)
+          xml.href("#{request.scheme}://#{request.host}:#{request.port}#{url_format}")
+        else
+          xml.href(url_format)
+        end
+        process_properties.each do |property|
+          propstats(xml, self.send("#{property[:type]}_property_with_status",property))
+        end
+      end
+    end
+
+    def get_property_with_status(property)
+      stats = Hash.new { |h, k| h[k] = [] }
+      begin
+        val = self.get_property(property[:element])
+        stats[OK] << [property[:element], val]
+      rescue Unauthorized => u
+        raise u
+      rescue Status
+        stats[$!.class] << property[:element]
+      end
+      stats
+    end
+
+    def set_property_with_status(property)
+      stats = Hash.new { |h, k| h[k] = [] }
+      begin
+        stats[OK] << [property[:element], self.set_property(property[:element], property[:value])]
+      rescue Unauthorized => u
+        raise u
+      rescue Status
+        stats[$!.class] << property[:element]
+      end
+      stats
+    end
+
+    # resource:: Resource
+    # elements:: Property hashes (name, namespace, children)
+    # Removes the given properties from a resource
+    def remove_property_with_status(property)
+      remove_property(property[:element])
+      []
+    end
+
+    # xml:: Nokogiri::XML::Builder
+    # stats:: Array of stats
+    # Build propstats response
+    def propstats(xml, stats)
+      return if stats.empty?
+      for status, props in stats
+        xml.propstat do
+          xml.prop do
+            for element, value in props
+              defn = xml.doc.root.namespace_definitions.find{|ns_def| ns_def.href == element[:ns_href]}
+              if defn.nil?
+                if element[:ns_href] and not element[:ns_href].empty?
+                  _ns = "unknown#{rand(65536)}"
+                  xml.doc.root.add_namespace_definition(_ns, element[:ns_href])
+                else
+                  _ns = nil
+                end
+              else
+                # Unfortunately Nokogiri won't let the null href, non-null prefix happen
+                # So we can't properly handle that error.
+                _ns = element[:ns_href].nil? ? nil : defn.prefix
+              end
+              ns_xml = _ns.nil? ? xml : xml[_ns]
+              if (value.is_a?(Nokogiri::XML::Node)) or (value.is_a?(Nokogiri::XML::DocumentFragment))
+                xml.__send__ :insert, value
+              elsif(value.is_a?(Symbol))
+                ns_xml.send(element[:name]) do
+                  ns_xml.send(value)
+                end
+              else
+                ns_xml.send(element[:name], value) do |x|
+                  # Make sure we return valid XML
+                  x.parent.namespace = nil if _ns.nil?
+                end
+              end
+
+              # This is gross, but make sure we set the current namespace back to DAV:
+              xml['D']
+            end
+          end
+          xml.status "#{http_version} #{status.status_line}"
+        end
+      end
+    end
+
+    # s:: string
+    # Escape URL string
+    def url_format
+      ret = URI.escape(public_path)
+      if collection? and ret[-1,1] != '/'
+        ret += '/'
+      end
+      ret
+    end
+
     # Does client allow GET redirection
     # TODO: Get a comprehensive list in here.
     # TODO: Allow this to be dynamic so users can add regexes to match if they know of a client
@@ -481,6 +584,11 @@ module DAV4Rack
     end
 
     protected
+
+    # Request environment variables
+    def env
+      @request.env
+    end
 
     # Returns authentication credentials if available in form of [username,password]
     # TODO: Add support for digest

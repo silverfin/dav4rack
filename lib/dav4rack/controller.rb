@@ -30,16 +30,6 @@ module DAV4Rack
     end
 
     # s:: string
-    # Escape URL string
-    def url_format(resource)
-      ret = URI.escape(resource.public_path)
-      if resource.collection? and ret[-1,1] != '/'
-        ret += '/'
-      end
-      ret
-    end
-
-    # s:: string
     # Unescape URL string
     def url_unescape(s)
       URI.unescape(s)
@@ -97,7 +87,7 @@ module DAV4Rack
       else
         resource.lock_check if resource.supports_locking?
         status = resource.put(request, response)
-        response['Location'] = "#{scheme}://#{host}:#{port}#{url_format(resource)}" if status == Created
+        response['Location'] = "#{scheme}://#{host}:#{port}#{resource.url_format}" if status == Created
         response.body = response['Location'] || ''
         status
       end
@@ -122,7 +112,7 @@ module DAV4Rack
     def mkcol
       resource.lock_check if resource.supports_locking?
       status = resource.make_collection
-      gen_url = "#{scheme}://#{host}:#{port}#{url_format(resource)}" if status == Created
+      gen_url = "#{scheme}://#{host}:#{port}#{resource.url_format}" if status == Created
       if(resource.use_compat_mkcol_response?)
         multistatus do |xml|
           xml.response do
@@ -168,7 +158,8 @@ module DAV4Rack
           if collection
             multistatus do |xml|
               xml.response do
-                xml.href "#{scheme}://#{host}:#{port}#{url_format(status == Created ? dest : resource)}"
+                resource_to_check = status == Created ? dest : resource
+                xml.href "#{scheme}://#{host}:#{port}#{resource_to_check.url_format}"
                 xml.status "#{http_version} #{status.status_line}"
               end
             end
@@ -207,20 +198,14 @@ module DAV4Rack
             raise BadRequest
           end
         end
-        multistatus do |xml|
-          find_resources.each do |resource|
-            xml.response do
-              unless(resource.propstat_relative_path)
-                xml.href "#{scheme}://#{host}:#{port}#{url_format(resource)}"
-              else
-                xml.href url_format(resource)
-              end
-              process_properties = properties.empty? ? resource.properties : properties
-              # Add additional properties to the properties list asked by the client
-              process_properties = resource.propfind_add_additional_properties(xml, process_properties)
 
-              propstats(xml, get_properties(resource, process_properties))
-            end
+        multistatus do |xml|
+          properties = properties.empty? ? resource.properties : properties
+          properties = resource.propfind_add_additional_properties(xml, properties)
+          properties.map!{|property| {type: :get, element: property}}
+
+          find_resources.each do |resource|
+            resource.properties_xml(xml, properties)
           end
         end
       end
@@ -240,24 +225,14 @@ module DAV4Rack
             if(prp)
               prp.children.each do |elm|
                 next if elm.name == 'text'
-                prop_actions << {:type => element.name, :name => to_element_hash(elm), :value => elm.text}
+                prop_actions << {:type => element.name, :element => to_element_hash(elm), :value => elm.text}
               end
             end
           end
         end
         multistatus do |xml|
           find_resources.each do |resource|
-            xml.response do
-              xml.href "#{scheme}://#{host}:#{port}#{url_format(resource)}"
-              prop_actions.each do |action|
-                case action[:type]
-                when 'set'
-                  propstats(xml, set_properties(resource, action[:name] => action[:value]))
-                when 'remove'
-                  rm_properties(resource, action[:name] => action[:value])
-                end
-              end
-            end
+            resource.properties_xml(xml, prop_actions)
           end
         end
       end
@@ -411,11 +386,6 @@ module DAV4Rack
       d
     end
 
-    # Current HTTP version being used
-    def http_version
-      env['HTTP_VERSION'] || env['SERVER_PROTOCOL'] || 'HTTP/1.0'
-    end
-
     # Overwrite is allowed
     def overwrite
       env['HTTP_OVERWRITE'].to_s.upcase != 'F'
@@ -497,95 +467,6 @@ module DAV4Rack
       for path, status in errors
         xml.response do
           xml.href "#{scheme}://#{host}:#{port}#{URI.escape(path)}"
-          xml.status "#{http_version} #{status.status_line}"
-        end
-      end
-    end
-
-    # resource:: Resource
-    # elements:: Property hashes (name, ns_href, children)
-    # Returns array of property values for given names
-    def get_properties(resource, elements)
-      stats = Hash.new { |h, k| h[k] = [] }
-      for element in elements
-        begin
-          val = resource.get_property(element)
-          stats[OK] << [element, val]
-        rescue Unauthorized => u
-          raise u
-        rescue Status
-          stats[$!.class] << element
-        end
-      end
-      stats
-    end
-
-    # resource:: Resource
-    # elements:: Property hashes (name, namespace, children)
-    # Removes the given properties from a resource
-    def rm_properties(resource, elements)
-      for element, value in elements
-        resource.remove_property(element)
-      end
-    end
-
-    # resource:: Resource
-    # elements:: Property hashes (name, namespace, children)
-    # Sets the given properties
-    def set_properties(resource, elements)
-      stats = Hash.new { |h, k| h[k] = [] }
-      for element, value in elements
-        begin
-          stats[OK] << [element, resource.set_property(element, value)]
-        rescue Unauthorized => u
-          raise u
-        rescue Status
-          stats[$!.class] << element
-        end
-      end
-      stats
-    end
-
-    # xml:: Nokogiri::XML::Builder
-    # stats:: Array of stats
-    # Build propstats response
-    def propstats(xml, stats)
-      return if stats.empty?
-      for status, props in stats
-        xml.propstat do
-          xml.prop do
-            for element, value in props
-              defn = xml.doc.root.namespace_definitions.find{|ns_def| ns_def.href == element[:ns_href]}
-              if defn.nil?
-                if element[:ns_href] and not element[:ns_href].empty?
-                  _ns = "unknown#{rand(65536)}"
-                  xml.doc.root.add_namespace_definition(_ns, element[:ns_href])
-                else
-                  _ns = nil
-                end
-              else
-                # Unfortunately Nokogiri won't let the null href, non-null prefix happen
-                # So we can't properly handle that error.
-                _ns = element[:ns_href].nil? ? nil : defn.prefix
-              end
-              ns_xml = _ns.nil? ? xml : xml[_ns]
-              if (value.is_a?(Nokogiri::XML::Node)) or (value.is_a?(Nokogiri::XML::DocumentFragment))
-                xml.__send__ :insert, value
-              elsif(value.is_a?(Symbol))
-                ns_xml.send(element[:name]) do
-                  ns_xml.send(value)
-                end
-              else
-                ns_xml.send(element[:name], value) do |x|
-                  # Make sure we return valid XML
-                  x.parent.namespace = nil if _ns.nil?
-                end
-              end
-
-              # This is gross, but make sure we set the current namespace back to DAV:
-              xml['D']
-            end
-          end
           xml.status "#{http_version} #{status.status_line}"
         end
       end

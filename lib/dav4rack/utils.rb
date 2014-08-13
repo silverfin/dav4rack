@@ -14,11 +14,11 @@ module DAV4Rack
       ns = element.namespace
       DAVElement.new(
         :namespace => ns,
-        :name => element.name, 
-        :ns_href => (ns.href if ns), 
-        :children => element.children.collect{|e| 
-          to_element_hash(e) if e.element? 
-        }.compact, 
+        :name => element.name,
+        :ns_href => (ns.href if ns),
+        :children => element.children.collect{|e|
+          to_element_hash(e) if e.element?
+        }.compact,
         :attributes => attributes_hash(element)
       )
     end
@@ -26,6 +26,10 @@ module DAV4Rack
     def to_element_key(element)
       ns = element.namespace
       "#{ns.href if ns}!!#{element.name}"
+    end
+
+    def http_version
+      env['HTTP_VERSION'] || env['SERVER_PROTOCOL'] || 'HTTP/1.0'
     end
 
     private
