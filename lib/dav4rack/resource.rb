@@ -442,6 +442,21 @@ module DAV4Rack
       <th class="mtime">Last Modified</th> </tr> %s </table> <hr /> </body></html>'
     end
 
+    def properties_xml_with_depth(xml, process_properties, depth)
+      all_resources = [self]
+      case depth
+      when 0
+      when 1
+        all_resources.concat(self.children)
+      else
+        all_resources.concat(self.descendants)
+      end
+
+      all_resources.each do |resource|
+        resource.properties_xml(xml, process_properties)
+      end
+    end
+
     def properties_xml(xml, process_properties)
       xml.response do
         unless(propstat_relative_path)

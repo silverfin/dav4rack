@@ -204,9 +204,7 @@ module DAV4Rack
           properties = resource.propfind_add_additional_properties(xml, properties)
           properties.map!{|property| {type: :get, element: property}}
 
-          find_resources.each do |resource|
-            resource.properties_xml(xml, properties)
-          end
+          resource.properties_xml_with_depth(xml, properties, depth)
         end
       end
     end
@@ -217,7 +215,7 @@ module DAV4Rack
         NotFound
       else
         resource.lock_check if resource.supports_locking?
-        prop_actions = []
+        properties = []
         request_document.xpath("/#{ns}propertyupdate").children.each do |element|
           case element.name
           when 'set', 'remove'
@@ -225,15 +223,13 @@ module DAV4Rack
             if(prp)
               prp.children.each do |elm|
                 next if elm.name == 'text'
-                prop_actions << {:type => element.name, :element => to_element_hash(elm), :value => elm.text}
+                properties << {:type => element.name, :element => to_element_hash(elm), :value => elm.text}
               end
             end
           end
         end
         multistatus do |xml|
-          find_resources.each do |resource|
-            resource.properties_xml(xml, prop_actions)
-          end
+          resource.resource.properties_xml_with_depth(xml, properties, depth)
         end
       end
     end
@@ -389,20 +385,6 @@ module DAV4Rack
     # Overwrite is allowed
     def overwrite
       env['HTTP_OVERWRITE'].to_s.upcase != 'F'
-    end
-
-    # Find resources at depth requested
-    def find_resources(with_current_resource=true)
-      ary = nil
-      case depth
-      when 0
-        ary = []
-      when 1
-        ary = resource.children
-      else
-        ary = resource.descendants
-      end
-      with_current_resource ? [resource] + ary : ary
     end
 
     # XML parsed request
