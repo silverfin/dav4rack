@@ -229,7 +229,7 @@ module DAV4Rack
           end
         end
         multistatus do |xml|
-          resource.resource.properties_xml_with_depth(xml, properties, depth)
+          resource.properties_xml_with_depth(xml, properties, depth)
         end
       end
     end
