@@ -202,9 +202,9 @@ module DAV4Rack
         multistatus do |xml|
           properties = properties.empty? ? resource.properties : properties
           properties = resource.propfind_add_additional_properties(xml, properties)
-          properties.map!{|property| {type: :get, element: property}}
+          properties.map!{|property| {element: property}}
 
-          resource.properties_xml_with_depth(xml, properties, depth)
+          resource.properties_xml_with_depth(xml, {:get => properties}, depth)
         end
       end
     end
@@ -215,7 +215,7 @@ module DAV4Rack
         NotFound
       else
         resource.lock_check if resource.supports_locking?
-        properties = []
+        properties = {}
         request_document.xpath("/#{ns}propertyupdate").children.each do |element|
           case element.name
           when 'set', 'remove'
@@ -223,7 +223,8 @@ module DAV4Rack
             if(prp)
               prp.children.each do |elm|
                 next if elm.name == 'text'
-                properties << {:type => element.name, :element => to_element_hash(elm), :value => elm.text}
+                properties[element.name] ||= []
+                properties[element.name] << {:element => to_element_hash(elm), :value => elm.text}
               end
             end
           end

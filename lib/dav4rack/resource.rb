@@ -464,33 +464,37 @@ module DAV4Rack
         else
           xml.href(url_format)
         end
-        process_properties.each do |property|
-          propstats(xml, self.send("#{property[:type]}_property_with_status",property))
+        process_properties.each do |type, properties|
+          propstats(xml, self.send("#{type}_properties_with_status",properties))
         end
       end
     end
 
-    def get_property_with_status(property)
+    def get_properties_with_status(properties)
       stats = Hash.new { |h, k| h[k] = [] }
-      begin
-        val = self.get_property(property[:element])
-        stats[OK] << [property[:element], val]
-      rescue Unauthorized => u
-        raise u
-      rescue Status
-        stats[$!.class] << property[:element]
+      for property in properties
+        begin
+          val = self.get_property(property[:element])
+          stats[OK] << [property[:element], val]
+        rescue Unauthorized => u
+          raise u
+        rescue Status
+          stats[$!.class] << property[:element]
+        end
       end
       stats
     end
 
-    def set_property_with_status(property)
+    def set_properties_with_status(properties)
       stats = Hash.new { |h, k| h[k] = [] }
-      begin
-        stats[OK] << [property[:element], self.set_property(property[:element], property[:value])]
-      rescue Unauthorized => u
-        raise u
-      rescue Status
-        stats[$!.class] << property[:element]
+      for property in properties
+        begin
+          stats[OK] << [property[:element], self.set_property(property[:element], property[:value])]
+        rescue Unauthorized => u
+          raise u
+        rescue Status
+          stats[$!.class] << property[:element]
+        end
       end
       stats
     end
@@ -498,8 +502,8 @@ module DAV4Rack
     # resource:: Resource
     # elements:: Property hashes (name, namespace, children)
     # Removes the given properties from a resource
-    def remove_property_with_status(property)
-      remove_property(property[:element])
+    def remove_properties_with_status(properties)
+      remove_property(properties.first[:element])
       []
     end
 
