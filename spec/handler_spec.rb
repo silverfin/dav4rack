@@ -107,11 +107,13 @@ describe DAV4Rack::Handler do
   it 'should not find a nonexistent resource' do
     get('/not_found').should be_not_found
   end
-  
-  it 'should not allow directory traversal' do
-    get('/../htdocs').should be_forbidden
+
+  it 'should translate directory traversal to an absolute path' do
+    put('/test', :input => 'body').should be_created
+    get('/../../../test').should be_ok
+    response.body.should == 'body'
   end
-  
+
   it 'should create a resource and allow its retrieval' do
     put('/test', :input => 'body').should be_created
     get('/test').should be_ok
