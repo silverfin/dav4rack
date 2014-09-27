@@ -92,6 +92,8 @@ describe DAV4Rack::Handler do
     require 'pry'
     require 'benchmark'
 
+    # binding.pry
+
     # doc = Ox::Document.new(:version => '1.0')
 
     # top = Ox::Element.new('D:top')
@@ -127,8 +129,12 @@ describe DAV4Rack::Handler do
       RubyProf::GraphHtmlPrinter.new(result).print(f, {})
     end
 
+    # without ox 9.080960035324097
+    # with ox 6.845001220703125
     b = Benchmark.measure do
-      propfind('http://localhost/', :input => xml)
+      10.times do
+        propfind('http://localhost/', :input => xml)
+      end
     end
 
     b.real.should == 1

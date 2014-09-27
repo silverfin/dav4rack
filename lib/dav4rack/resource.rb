@@ -458,16 +458,18 @@ module DAV4Rack
     end
 
     def properties_xml(xml, process_properties)
-      xml.response do
-        unless(propstat_relative_path)
-          xml.href("#{request.scheme}://#{request.host}:#{request.port}#{url_format}")
-        else
-          xml.href(url_format)
-        end
-        process_properties.each do |type, properties|
-          propstats(xml, self.send("#{type}_properties_with_status",properties))
-        end
+      response = Ox::Element.new('D:response')
+
+      unless(propstat_relative_path)
+        response << (Ox::Element.new('D:href') << "#{request.scheme}://#{request.host}:#{request.port}#{url_format}")
+      else
+        response << (Ox::Element.new('D:href') << url_format)
       end
+
+      process_properties.each do |type, properties|
+        propstats(response, self.send("#{type}_properties_with_status",properties))
+      end
+      xml << Ox.dump(response, {indent: -1})
     end
 
     def get_properties_with_status(properties)
@@ -510,45 +512,29 @@ module DAV4Rack
     # xml:: Nokogiri::XML::Builder
     # stats:: Array of stats
     # Build propstats response
-    def propstats(xml, stats)
+    def propstats(response, stats)
       return if stats.empty?
       for status, props in stats
-        xml.propstat do
-          xml.prop do
-            for element, value in props
-              defn = xml.doc.root.namespace_definitions.find{|ns_def| ns_def.href == element[:ns_href]}
-              if defn.nil?
-                if element[:ns_href] and not element[:ns_href].empty?
-                  _ns = "unknown#{rand(65536)}"
-                  xml.doc.root.add_namespace_definition(_ns, element[:ns_href])
-                else
-                  _ns = nil
-                end
-              else
-                # Unfortunately Nokogiri won't let the null href, non-null prefix happen
-                # So we can't properly handle that error.
-                _ns = element[:ns_href].nil? ? nil : defn.prefix
-              end
-              ns_xml = _ns.nil? ? xml : xml[_ns]
-              if (value.is_a?(Nokogiri::XML::Node)) or (value.is_a?(Nokogiri::XML::DocumentFragment))
-                xml.__send__ :insert, value
-              elsif(value.is_a?(Symbol))
-                ns_xml.send(element[:name]) do
-                  ns_xml.send(value)
-                end
-              else
-                ns_xml.send(element[:name], value) do |x|
-                  # Make sure we return valid XML
-                  x.parent.namespace = nil if _ns.nil?
-                end
-              end
+        propstat = Ox::Element.new('D:propstat')
+        prop = Ox::Element.new('D:prop')
 
-              # This is gross, but make sure we set the current namespace back to DAV:
-              xml['D']
-            end
+        for element, value in props
+          # should check and fetch namespaces here, will just to "D:" for now
+          if (value.is_a?(Nokogiri::XML::Node)) or (value.is_a?(Nokogiri::XML::DocumentFragment))
+            raise "didn't expect #{value}"
+          elsif(value.is_a?(Symbol))
+            prop << (Ox::Element.new("D:#{element[:name]}") << Ox::Element.new("D:#{value}"))
+          else
+            prop_element = Ox::Element.new("D:#{element[:name]}")
+            prop_element << value if value
+            prop << prop_element
           end
-          xml.status "#{http_version} #{status.status_line}"
         end
+
+        propstat << prop
+        propstat << (Ox::Element.new('D:status') << "#{http_version} #{status.status_line}")
+
+        response << propstat
       end
     end
 
