@@ -526,7 +526,7 @@ module DAV4Rack
             prop << (Ox::Element.new("D:#{element[:name]}") << Ox::Element.new("D:#{value}"))
           else
             prop_element = Ox::Element.new("D:#{element[:name]}")
-            prop_element << value if value
+            prop_element << value.to_s if value
             prop << prop_element
           end
         end
