@@ -200,22 +200,16 @@ module DAV4Rack
         end
 
         multistatus = Ox::Element.new('D:multistatus')
-        resource.namespaces.each do |href, prefix|
-          multistatus["xmlns:#{prefix}"] = href
-        end
 
         properties = properties.empty? ? resource.properties : properties
         properties.map!{|property| {element: property}}
         properties = resource.propfind_add_additional_properties(properties)
-        resource.properties_xml_with_depth(multistatus, {:get => properties}, depth)
 
-        xml_doc = Ox::Document.new(:version => '1.0')
-        xml_doc << multistatus
+        resource.properties_xml_with_depth({:get => properties}, depth).each do |response|
+          multistatus << response
+        end
 
-        response.body = Ox.dump(xml_doc, {indent: -1, with_xml: true})
-
-        response["Content-Type"] = 'application/xml; charset=utf-8'
-        response["Content-Length"] = response.body.size.to_s
+        render_ox_xml(multistatus)
 
         MultiStatus
       end
@@ -241,9 +235,15 @@ module DAV4Rack
             end
           end
         end
-        multistatus do |xml|
-          resource.properties_xml_with_depth(xml, properties, depth)
+
+        multistatus = Ox::Element.new('D:multistatus')
+
+        resource.properties_xml_with_depth(properties, depth).each do |response|
+          multistatus << response
         end
+
+        render_ox_xml(multistatus)
+        MultiStatus
       end
     end
 
@@ -443,6 +443,20 @@ module DAV4Rack
           :save_with => Nokogiri::XML::Node::SaveOptions::AS_XML
         )
       end
+      response["Content-Type"] = 'application/xml; charset=utf-8'
+      response["Content-Length"] = response.body.size.to_s
+    end
+
+    def render_ox_xml(xml_body)
+      resource.namespaces.each do |href, prefix|
+        xml_body["xmlns:#{prefix}"] = href
+      end
+
+      xml_doc = Ox::Document.new(:version => '1.0')
+      xml_doc << xml_body
+
+      response.body = Ox.dump(xml_doc, {indent: -1, with_xml: true})
+
       response["Content-Type"] = 'application/xml; charset=utf-8'
       response["Content-Length"] = response.body.size.to_s
     end

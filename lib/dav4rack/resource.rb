@@ -443,7 +443,7 @@ module DAV4Rack
       <th class="mtime">Last Modified</th> </tr> %s </table> <hr /> </body></html>'
     end
 
-    def properties_xml_with_depth(xml, process_properties, depth)
+    def properties_xml_with_depth(process_properties, depth)
       all_resources = [self]
       case depth
       when 0
@@ -453,12 +453,12 @@ module DAV4Rack
         all_resources.concat(self.descendants)
       end
 
-      all_resources.each do |resource|
-        resource.properties_xml(xml, process_properties)
+      all_resources.map do |resource|
+        resource.properties_xml(process_properties)
       end
     end
 
-    def properties_xml(xml, process_properties)
+    def properties_xml(process_properties)
       response = Ox::Element.new('D:response')
 
       unless(propstat_relative_path)
@@ -470,7 +470,7 @@ module DAV4Rack
       process_properties.each do |type, properties|
         propstats(response, self.send("#{type}_properties_with_status",properties))
       end
-      xml << response
+      response
     end
 
     def get_properties_with_status(properties)
