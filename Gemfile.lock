@@ -3,6 +3,7 @@ PATH
   specs:
     dav4rack (0.3.0)
       nokogiri (>= 1.4.2)
+      ox (>= 2.1.0)
       rack (>= 1.1.0)
       uuidtools (~> 2.1.1)
 

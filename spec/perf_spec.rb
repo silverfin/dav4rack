@@ -131,6 +131,7 @@ describe DAV4Rack::Handler do
 
     # without ox 9.080960035324097
     # with ox 6.845001220703125
+    # second pass with ox 4.0348320007
     b = Benchmark.measure do
       10.times do
         propfind('http://localhost/', :input => xml)

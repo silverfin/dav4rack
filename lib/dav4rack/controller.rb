@@ -199,13 +199,25 @@ module DAV4Rack
           end
         end
 
-        multistatus do |xml|
-          properties = properties.empty? ? resource.properties : properties
-          properties = resource.propfind_add_additional_properties(xml, properties)
-          properties.map!{|property| {element: property}}
-
-          resource.properties_xml_with_depth(xml, {:get => properties}, depth)
+        multistatus = Ox::Element.new('D:multistatus')
+        resource.namespaces.each do |href, prefix|
+          multistatus["xmlns:#{prefix}"] = href
         end
+
+        properties = properties.empty? ? resource.properties : properties
+        properties.map!{|property| {element: property}}
+        properties = resource.propfind_add_additional_properties(properties)
+        resource.properties_xml_with_depth(multistatus, {:get => properties}, depth)
+
+        xml_doc = Ox::Document.new(:version => '1.0')
+        xml_doc << multistatus
+
+        response.body = Ox.dump(xml_doc, {indent: -1, with_xml: true})
+
+        response["Content-Type"] = 'application/xml; charset=utf-8'
+        response["Content-Length"] = response.body.size.to_s
+
+        MultiStatus
       end
     end
 

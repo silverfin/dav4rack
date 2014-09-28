@@ -19,7 +19,7 @@ module DAV4Rack
     include DAV4Rack::Utils
 
     attr_reader :path, :options, :public_path, :request,
-      :response, :propstat_relative_path, :root_xml_attributes
+      :response, :propstat_relative_path, :root_xml_attributes, :namespaces
     attr_accessor :user
     @@blocks = {}
 
@@ -76,6 +76,7 @@ module DAV4Rack
       @path = path.dup
       @propstat_relative_path = !!options.delete(:propstat_relative_path)
       @root_xml_attributes = options.delete(:root_xml_attributes) || {}
+      @namespaces = (options[:namespaces] || {}).merge({'DAV:' => 'D'})
       @request = request
       @response = response
       unless(options.has_key?(:lock_class))
@@ -469,7 +470,7 @@ module DAV4Rack
       process_properties.each do |type, properties|
         propstats(response, self.send("#{type}_properties_with_status",properties))
       end
-      xml << Ox.dump(response, {indent: -1})
+      xml << response
     end
 
     def get_properties_with_status(properties)
@@ -520,12 +521,11 @@ module DAV4Rack
 
         for element, value in props
           # should check and fetch namespaces here, will just to "D:" for now
-          if (value.is_a?(Nokogiri::XML::Node)) or (value.is_a?(Nokogiri::XML::DocumentFragment))
-            raise "didn't expect #{value}"
-          elsif(value.is_a?(Symbol))
-            prop << (Ox::Element.new("D:#{element[:name]}") << Ox::Element.new("D:#{value}"))
+          prefix = namespaces[element[:ns_href]]
+          if(value.is_a?(Symbol))
+            prop << (Ox::Element.new("#{prefix}:#{element[:name]}") << Ox::Element.new("#{prefix}:#{value}"))
           else
-            prop_element = Ox::Element.new("D:#{element[:name]}")
+            prop_element = Ox::Element.new("#{prefix}:#{element[:name]}")
             prop_element << value.to_s if value
             prop << prop_element
           end
@@ -583,7 +583,7 @@ module DAV4Rack
     # These properties will then be parsed and processed as though they were sent
     # by the client. This makes sure we can add whatever property we want
     # to the response and make it look like the client asked for them.
-    def propfind_add_additional_properties(xml, properties)
+    def propfind_add_additional_properties(properties)
       # Default implementation doesn't need to add anything
       properties
     end
