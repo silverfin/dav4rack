@@ -205,9 +205,7 @@ module DAV4Rack
         properties.map!{|property| {element: property}}
         properties = resource.propfind_add_additional_properties(properties)
 
-        resource.properties_xml_with_depth({:get => properties}, depth).each do |response|
-          multistatus << response
-        end
+        multistatus << Ox::Raw.new(resource.properties_xml_with_depth({:get => properties}, depth))
 
         render_ox_xml(multistatus)
 
@@ -238,9 +236,7 @@ module DAV4Rack
 
         multistatus = Ox::Element.new('D:multistatus')
 
-        resource.properties_xml_with_depth(properties, depth).each do |response|
-          multistatus << response
-        end
+        multistatus << Ox::Raw.new(resource.properties_xml_with_depth(properties, depth))
 
         render_ox_xml(multistatus)
         MultiStatus

@@ -453,9 +453,12 @@ module DAV4Rack
         all_resources.concat(self.descendants)
       end
 
+      partial_document = Ox::Document.new()
+
       all_resources.map do |resource|
-        resource.properties_xml(process_properties)
+        partial_document << resource.properties_xml(process_properties)
       end
+      Ox.dump(partial_document, {indent: -1})
     end
 
     def properties_xml(process_properties)
