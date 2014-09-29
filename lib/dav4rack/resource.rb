@@ -19,7 +19,7 @@ module DAV4Rack
     include DAV4Rack::Utils
 
     attr_reader :path, :options, :public_path, :request,
-      :response, :propstat_relative_path, :root_xml_attributes
+      :response, :propstat_relative_path, :root_xml_attributes, :namespaces
     attr_accessor :user
     @@blocks = {}
 
@@ -72,10 +72,11 @@ module DAV4Rack
         :public_path, :request, :response, :user,
         :user=, :setup
       ]
-      @public_path = public_path.dup
-      @path = path.dup
+      @public_path = public_path
+      @path = path
       @propstat_relative_path = !!options.delete(:propstat_relative_path)
       @root_xml_attributes = options.delete(:root_xml_attributes) || {}
+      @namespaces = (options[:namespaces] || {}).merge({'DAV:' => 'D'})
       @request = request
       @response = response
       unless(options.has_key?(:lock_class))
@@ -85,16 +86,11 @@ module DAV4Rack
         @lock_class = options[:lock_class]
         raise NameError.new("Unknown lock type constant provided: #{@lock_class}") unless @lock_class.nil? || defined?(@lock_class)
       end
-      @options = options.dup
+      @options = options
       @max_timeout = options[:max_timeout] || 86400
       @default_timeout = options[:default_timeout] || 60
       @user = @options[:user] || request.ip
       setup if respond_to?(:setup)
-      public_methods(false).each do |method|
-        next if @skip_alias.include?(method.to_sym) || method[0,4] == 'DAV_' || method[0,5] == '_DAV_'
-        self.class.class_eval "alias :'_DAV_#{method}' :'#{method}'"
-        self.class.class_eval "undef :'#{method}'"
-      end
       @runner = lambda do |class_sym, kind, method_name|
         [:'__all__', method_name.to_sym].each do |sym|
           if(@@blocks[class_sym] && @@blocks[class_sym][kind] && @@blocks[class_sym][kind][sym])
@@ -105,19 +101,6 @@ module DAV4Rack
           end
         end
       end
-    end
-
-    # This allows us to call before and after blocks
-    def method_missing(*args)
-      result = nil
-      orig = args.shift
-      class_sym = self.class.name.to_sym
-      m = orig.to_s[0,5] == '_DAV_' ? orig : "_DAV_#{orig}" # If hell is doing the same thing over and over and expecting a different result this is a hell preventer
-      raise NoMethodError.new("Undefined method: #{orig} for class #{self}.") unless respond_to?(m)
-      @runner.call(class_sym, :before, orig)
-      result = send m, *args
-      @runner.call(class_sym, :after, orig)
-      result
     end
 
     # Returns if resource supports locking
@@ -362,7 +345,7 @@ module DAV4Rack
     # name:: String - Property name
     # Returns the value of the given property
     def get_property(element)
-      raise NotImplemented if (element[:ns_href] != 'DAV:')
+      return NotImplemented if (element[:ns_href] != 'DAV:')
       case element[:name]
       when 'resourcetype'     then resource_type
       when 'displayname'      then display_name
@@ -371,7 +354,7 @@ module DAV4Rack
       when 'getcontenttype'   then content_type
       when 'getetag'          then etag
       when 'getlastmodified'  then last_modified.httpdate
-      else                    raise NotImplemented
+      else                    NotImplemented
       end
     end
 
@@ -379,13 +362,13 @@ module DAV4Rack
     # value:: New value
     # Set the property to the given value
     def set_property(element, value)
-      raise NotImplemented if (element[:ns_href] != 'DAV:')
+      return NotImplemented if (element[:ns_href] != 'DAV:')
       case element[:name]
       when 'resourcetype'    then self.resource_type = value
       when 'getcontenttype'  then self.content_type = value
       when 'getetag'         then self.etag = value
       when 'getlastmodified' then self.last_modified = Time.httpdate(value)
-      else                   raise NotImplemented
+      else                   NotImplemented
       end
     end
 
@@ -442,7 +425,7 @@ module DAV4Rack
       <th class="mtime">Last Modified</th> </tr> %s </table> <hr /> </body></html>'
     end
 
-    def properties_xml_with_depth(xml, process_properties, depth)
+    def properties_xml_with_depth(process_properties, depth)
       all_resources = [self]
       case depth
       when 0
@@ -452,34 +435,37 @@ module DAV4Rack
         all_resources.concat(self.descendants)
       end
 
+      partial_document = Ox::Document.new()
+
       all_resources.each do |resource|
-        resource.properties_xml(xml, process_properties)
+        partial_document << resource.properties_xml(process_properties)
       end
+      Ox.dump(partial_document, {indent: -1})
     end
 
-    def properties_xml(xml, process_properties)
-      xml.response do
-        unless(propstat_relative_path)
-          xml.href("#{request.scheme}://#{request.host}:#{request.port}#{url_format}")
-        else
-          xml.href(url_format)
-        end
-        process_properties.each do |type, properties|
-          propstats(xml, self.send("#{type}_properties_with_status",properties))
-        end
+    def properties_xml(process_properties)
+      response = Ox::Element.new('D:response')
+
+      unless(propstat_relative_path)
+        response << (Ox::Element.new('D:href') << "#{request.scheme}://#{request.host}:#{request.port}#{url_format}")
+      else
+        response << (Ox::Element.new('D:href') << url_format)
       end
+
+      process_properties.each do |type, properties|
+        propstats(response, self.send("#{type}_properties_with_status",properties))
+      end
+      response
     end
 
     def get_properties_with_status(properties)
       stats = Hash.new { |h, k| h[k] = [] }
-      for property in properties
-        begin
-          val = self.get_property(property[:element])
+      properties.each do |property|
+        val = self.get_property(property[:element])
+        if val.is_a?(Status)
+          stats[Status.class] << property[:element]
+        else
           stats[OK] << [property[:element], val]
-        rescue Unauthorized => u
-          raise u
-        rescue Status
-          stats[$!.class] << property[:element]
         end
       end
       stats
@@ -487,13 +473,12 @@ module DAV4Rack
 
     def set_properties_with_status(properties)
       stats = Hash.new { |h, k| h[k] = [] }
-      for property in properties
-        begin
-          stats[OK] << [property[:element], self.set_property(property[:element], property[:value])]
-        rescue Unauthorized => u
-          raise u
-        rescue Status
-          stats[$!.class] << property[:element]
+      properties.each do |property|
+        val = self.set_property(property[:element], property[:value])
+        if val.is_a?(Status)
+          stats[Status.class] << property[:element]
+        else
+          stats[OK] << [property[:element], val]
         end
       end
       stats
@@ -510,45 +495,28 @@ module DAV4Rack
     # xml:: Nokogiri::XML::Builder
     # stats:: Array of stats
     # Build propstats response
-    def propstats(xml, stats)
+    def propstats(response, stats)
       return if stats.empty?
       for status, props in stats
-        xml.propstat do
-          xml.prop do
-            for element, value in props
-              defn = xml.doc.root.namespace_definitions.find{|ns_def| ns_def.href == element[:ns_href]}
-              if defn.nil?
-                if element[:ns_href] and not element[:ns_href].empty?
-                  _ns = "unknown#{rand(65536)}"
-                  xml.doc.root.add_namespace_definition(_ns, element[:ns_href])
-                else
-                  _ns = nil
-                end
-              else
-                # Unfortunately Nokogiri won't let the null href, non-null prefix happen
-                # So we can't properly handle that error.
-                _ns = element[:ns_href].nil? ? nil : defn.prefix
-              end
-              ns_xml = _ns.nil? ? xml : xml[_ns]
-              if (value.is_a?(Nokogiri::XML::Node)) or (value.is_a?(Nokogiri::XML::DocumentFragment))
-                xml.__send__ :insert, value
-              elsif(value.is_a?(Symbol))
-                ns_xml.send(element[:name]) do
-                  ns_xml.send(value)
-                end
-              else
-                ns_xml.send(element[:name], value) do |x|
-                  # Make sure we return valid XML
-                  x.parent.namespace = nil if _ns.nil?
-                end
-              end
+        propstat = Ox::Element.new('D:propstat')
+        prop = Ox::Element.new('D:prop')
 
-              # This is gross, but make sure we set the current namespace back to DAV:
-              xml['D']
-            end
+        for element, value in props
+          # should check and fetch namespaces here, will just to "D:" for now
+          prefix = namespaces[element[:ns_href]]
+          if(value.is_a?(Symbol))
+            prop << (Ox::Element.new("#{prefix}:#{element[:name]}") << Ox::Element.new("#{prefix}:#{value}"))
+          else
+            prop_element = Ox::Element.new("#{prefix}:#{element[:name]}")
+            prop_element << value.to_s if value
+            prop << prop_element
           end
-          xml.status "#{http_version} #{status.status_line}"
         end
+
+        propstat << prop
+        propstat << (Ox::Element.new('D:status') << "#{http_version} #{status.status_line}")
+
+        response << propstat
       end
     end
 
@@ -597,7 +565,7 @@ module DAV4Rack
     # These properties will then be parsed and processed as though they were sent
     # by the client. This makes sure we can add whatever property we want
     # to the response and make it look like the client asked for them.
-    def propfind_add_additional_properties(xml, properties)
+    def propfind_add_additional_properties(properties)
       # Default implementation doesn't need to add anything
       properties
     end
