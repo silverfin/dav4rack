@@ -72,8 +72,8 @@ module DAV4Rack
         :public_path, :request, :response, :user,
         :user=, :setup
       ]
-      @public_path = public_path.dup
-      @path = path.dup
+      @public_path = public_path
+      @path = path
       @propstat_relative_path = !!options.delete(:propstat_relative_path)
       @root_xml_attributes = options.delete(:root_xml_attributes) || {}
       @namespaces = (options[:namespaces] || {}).merge({'DAV:' => 'D'})
@@ -86,16 +86,11 @@ module DAV4Rack
         @lock_class = options[:lock_class]
         raise NameError.new("Unknown lock type constant provided: #{@lock_class}") unless @lock_class.nil? || defined?(@lock_class)
       end
-      @options = options.dup
+      @options = options
       @max_timeout = options[:max_timeout] || 86400
       @default_timeout = options[:default_timeout] || 60
       @user = @options[:user] || request.ip
       setup if respond_to?(:setup)
-      public_methods(false).each do |method|
-        next if @skip_alias.include?(method.to_sym) || method[0,4] == 'DAV_' || method[0,5] == '_DAV_'
-        self.class.class_eval "alias :'_DAV_#{method}' :'#{method}'"
-        self.class.class_eval "undef :'#{method}'"
-      end
       @runner = lambda do |class_sym, kind, method_name|
         [:'__all__', method_name.to_sym].each do |sym|
           if(@@blocks[class_sym] && @@blocks[class_sym][kind] && @@blocks[class_sym][kind][sym])
@@ -106,19 +101,6 @@ module DAV4Rack
           end
         end
       end
-    end
-
-    # This allows us to call before and after blocks
-    def method_missing(*args)
-      result = nil
-      orig = args.shift
-      class_sym = self.class.name.to_sym
-      m = orig.to_s[0,5] == '_DAV_' ? orig : "_DAV_#{orig}" # If hell is doing the same thing over and over and expecting a different result this is a hell preventer
-      raise NoMethodError.new("Undefined method: #{orig} for class #{self}.") unless respond_to?(m)
-      @runner.call(class_sym, :before, orig)
-      result = send m, *args
-      @runner.call(class_sym, :after, orig)
-      result
     end
 
     # Returns if resource supports locking
