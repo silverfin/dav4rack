@@ -460,16 +460,12 @@ module DAV4Rack
 
     def get_properties_with_status(properties)
       stats = Hash.new { |h, k| h[k] = [] }
-      for property in properties
-        begin
-          val = self.get_property(property[:element])
-          if val.is_a?(Status)
-            stats[Status.class] << property[:element]
-          else
-            stats[OK] << [property[:element], val]
-          end
-        rescue Unauthorized => u
-          raise u
+      properties.each do |property|
+        val = self.get_property(property[:element])
+        if val.is_a?(Status)
+          stats[Status.class] << property[:element]
+        else
+          stats[OK] << [property[:element], val]
         end
       end
       stats
@@ -477,16 +473,12 @@ module DAV4Rack
 
     def set_properties_with_status(properties)
       stats = Hash.new { |h, k| h[k] = [] }
-      for property in properties
-        begin
-          val = self.set_property(property[:element], property[:value])
-          if val.is_a?(Status)
-            stats[Status.class] << property[:element]
-          else
-            stats[OK] << [property[:element], val]
-          end
-        rescue Unauthorized => u
-          raise u
+      properties.each do |property|
+        val = self.set_property(property[:element], property[:value])
+        if val.is_a?(Status)
+          stats[Status.class] << property[:element]
+        else
+          stats[OK] << [property[:element], val]
         end
       end
       stats
