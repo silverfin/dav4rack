@@ -455,7 +455,7 @@ module DAV4Rack
 
       partial_document = Ox::Document.new()
 
-      all_resources.map do |resource|
+      all_resources.each do |resource|
         partial_document << resource.properties_xml(process_properties)
       end
       Ox.dump(partial_document, {indent: -1})
