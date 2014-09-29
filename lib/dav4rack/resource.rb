@@ -363,7 +363,7 @@ module DAV4Rack
     # name:: String - Property name
     # Returns the value of the given property
     def get_property(element)
-      raise NotImplemented if (element[:ns_href] != 'DAV:')
+      return NotImplemented if (element[:ns_href] != 'DAV:')
       case element[:name]
       when 'resourcetype'     then resource_type
       when 'displayname'      then display_name
@@ -372,7 +372,7 @@ module DAV4Rack
       when 'getcontenttype'   then content_type
       when 'getetag'          then etag
       when 'getlastmodified'  then last_modified.httpdate
-      else                    raise NotImplemented
+      else                    NotImplemented
       end
     end
 
@@ -380,13 +380,13 @@ module DAV4Rack
     # value:: New value
     # Set the property to the given value
     def set_property(element, value)
-      raise NotImplemented if (element[:ns_href] != 'DAV:')
+      return NotImplemented if (element[:ns_href] != 'DAV:')
       case element[:name]
       when 'resourcetype'    then self.resource_type = value
       when 'getcontenttype'  then self.content_type = value
       when 'getetag'         then self.etag = value
       when 'getlastmodified' then self.last_modified = Time.httpdate(value)
-      else                   raise NotImplemented
+      else                   NotImplemented
       end
     end
 
@@ -481,11 +481,13 @@ module DAV4Rack
       for property in properties
         begin
           val = self.get_property(property[:element])
-          stats[OK] << [property[:element], val]
+          if val.is_a?(Status)
+            stats[Status.class] << property[:element]
+          else
+            stats[OK] << [property[:element], val]
+          end
         rescue Unauthorized => u
           raise u
-        rescue Status
-          stats[$!.class] << property[:element]
         end
       end
       stats
@@ -495,11 +497,14 @@ module DAV4Rack
       stats = Hash.new { |h, k| h[k] = [] }
       for property in properties
         begin
-          stats[OK] << [property[:element], self.set_property(property[:element], property[:value])]
+          val = self.set_property(property[:element], property[:value])
+          if val.is_a?(Status)
+            stats[Status.class] << property[:element]
+          else
+            stats[OK] << [property[:element], val]
+          end
         rescue Unauthorized => u
           raise u
-        rescue Status
-          stats[$!.class] << property[:element]
         end
       end
       stats
