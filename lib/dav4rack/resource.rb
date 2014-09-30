@@ -462,8 +462,8 @@ module DAV4Rack
       stats = Hash.new { |h, k| h[k] = [] }
       properties.each do |property|
         val = self.get_property(property[:element])
-        if val.is_a?(Status)
-          stats[Status.class] << property[:element]
+        if val.is_a?(Class)
+          stats[val] << property[:element]
         else
           stats[OK] << [property[:element], val]
         end
@@ -475,8 +475,8 @@ module DAV4Rack
       stats = Hash.new { |h, k| h[k] = [] }
       properties.each do |property|
         val = self.set_property(property[:element], property[:value])
-        if val.is_a?(Status)
-          stats[Status.class] << property[:element]
+        if val.is_a?(Class)
+          stats[val] << property[:element]
         else
           stats[OK] << [property[:element], val]
         end
