@@ -66,12 +66,6 @@ module DAV4Rack
     # NOTE: Customized Resources should not use initialize for setup. Instead
     #       use the #setup method
     def initialize(public_path, path, request, response, options)
-      @skip_alias = [
-        :authenticate, :authentication_error_msg,
-        :authentication_realm, :path, :options,
-        :public_path, :request, :response, :user,
-        :user=, :setup
-      ]
       @public_path = public_path
       @path = path
       @propstat_relative_path = !!options.delete(:propstat_relative_path)
@@ -91,16 +85,6 @@ module DAV4Rack
       @default_timeout = options[:default_timeout] || 60
       @user = @options[:user] || request.ip
       setup if respond_to?(:setup)
-      @runner = lambda do |class_sym, kind, method_name|
-        [:'__all__', method_name.to_sym].each do |sym|
-          if(@@blocks[class_sym] && @@blocks[class_sym][kind] && @@blocks[class_sym][kind][sym])
-            @@blocks[class_sym][kind][sym].each do |b|
-              args = [self, sym == :'__all__' ? method_name : nil].compact
-              b.call(*args)
-            end
-          end
-        end
-      end
     end
 
     # Returns if resource supports locking
