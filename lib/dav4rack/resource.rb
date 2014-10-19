@@ -410,20 +410,22 @@ module DAV4Rack
     end
 
     def properties_xml_with_depth(process_properties, depth)
-      all_resources = [self]
+      partial_document = Ox::Document.new()
+
+      partial_document << self.properties_xml(process_properties)
+
       case depth
       when 0
       when 1
-        all_resources.concat(self.children)
+        self.children.each do |resource|
+          partial_document << resource.properties_xml(process_properties)
+        end
       else
-        all_resources.concat(self.descendants)
+        self.descendants.each do |resource|
+          partial_document << resource.properties_xml(process_properties)
+        end
       end
 
-      partial_document = Ox::Document.new()
-
-      all_resources.each do |resource|
-        partial_document << resource.properties_xml(process_properties)
-      end
       Ox.dump(partial_document, {indent: -1})
     end
 
