@@ -1,5 +1,6 @@
 require 'uuidtools'
 require 'dav4rack/http_status'
+require 'dav4rack/lock_store'
 
 module DAV4Rack
 
@@ -17,6 +18,9 @@ module DAV4Rack
 
   class Resource
     include DAV4Rack::Utils
+
+    DAV_NAMESPACE = 'DAV:'
+    DAV_NAMESPACE_NAME = 'D'
 
     attr_reader :path, :options, :public_path, :request,
       :response, :propstat_relative_path, :root_xml_attributes, :namespaces
@@ -70,11 +74,10 @@ module DAV4Rack
       @path = path
       @propstat_relative_path = !!options.delete(:propstat_relative_path)
       @root_xml_attributes = options.delete(:root_xml_attributes) || {}
-      @namespaces = (options[:namespaces] || {}).merge({'DAV:' => 'D'})
+      @namespaces = (options[:namespaces] || {}).merge({DAV_NAMESPACE => DAV_NAMESPACE_NAME})
       @request = request
       @response = response
       unless(options.has_key?(:lock_class))
-        require 'dav4rack/lock_store'
         @lock_class = LockStore
       else
         @lock_class = options[:lock_class]
@@ -322,14 +325,14 @@ module DAV4Rack
     # Available properties
     def properties
       %w(creationdate displayname getlastmodified getetag resourcetype getcontenttype getcontentlength).collect do |prop|
-        {:name => prop, :ns_href => 'DAV:'}
+        {:name => prop, :ns_href => DAV_NAMESPACE}
       end
     end
 
     # name:: String - Property name
     # Returns the value of the given property
     def get_property(element)
-      return NotImplemented if (element[:ns_href] != 'DAV:')
+      return NotImplemented if (element[:ns_href] != DAV_NAMESPACE)
       case element[:name]
       when 'resourcetype'     then resource_type
       when 'displayname'      then display_name
@@ -346,7 +349,7 @@ module DAV4Rack
     # value:: New value
     # Set the property to the given value
     def set_property(element, value)
-      return NotImplemented if (element[:ns_href] != 'DAV:')
+      return NotImplemented if (element[:ns_href] != DAV_NAMESPACE)
       case element[:name]
       when 'resourcetype'    then self.resource_type = value
       when 'getcontenttype'  then self.content_type = value
@@ -429,13 +432,16 @@ module DAV4Rack
       Ox.dump(partial_document, {indent: -1})
     end
 
+    D_RESPONSE = 'D:response'
+    D_HREF = 'D:href'
+
     def properties_xml(process_properties)
-      response = Ox::Element.new('D:response')
+      response = Ox::Element.new(D_RESPONSE)
 
       unless(propstat_relative_path)
-        response << (Ox::Element.new('D:href') << "#{request.scheme}://#{request.host}:#{request.port}#{url_format}")
+        response << (Ox::Element.new(D_HREF) << "#{request.scheme}://#{request.host}:#{request.port}#{url_format}")
       else
-        response << (Ox::Element.new('D:href') << url_format)
+        response << (Ox::Element.new(D_HREF) << url_format)
       end
 
       process_properties.each do |type, properties|
@@ -481,14 +487,17 @@ module DAV4Rack
     # xml:: Nokogiri::XML::Builder
     # stats:: Array of stats
     # Build propstats response
+    D_PROPSTAT = 'D:propstat'
+    D_PROP = 'D:prop'
+    D_STATUS = 'D:status'
+
     def propstats(response, stats)
       return if stats.empty?
-      for status, props in stats
-        propstat = Ox::Element.new('D:propstat')
-        prop = Ox::Element.new('D:prop')
+      stats.each do |status, props|
+        propstat = Ox::Element.new(D_PROPSTAT)
+        prop = Ox::Element.new(D_PROP)
 
-        for element, value in props
-          # should check and fetch namespaces here, will just to "D:" for now
+        props.each do |element, value|
           prefix = namespaces[element[:ns_href]]
           if(value.is_a?(Symbol))
             prop << (Ox::Element.new("#{prefix}:#{element[:name]}") << Ox::Element.new("#{prefix}:#{value}"))
@@ -500,7 +509,7 @@ module DAV4Rack
         end
 
         propstat << prop
-        propstat << (Ox::Element.new('D:status') << "#{http_version} #{status.status_line}")
+        propstat << (Ox::Element.new(D_STATUS) << "#{http_version} #{status.status_line}")
 
         response << propstat
       end
