@@ -14,7 +14,7 @@ module DAV4Rack
     # Create a new Controller.
     # NOTE: options will be passed to Resource
     def initialize(request, response, options={})
-      request.path_info = ::File.expand_path(request.path_info)
+      request.path_info = ::File.expand_path(request.path_info) if request.path_info.length > 0
       @request = request
       @response = response
       @options = options
