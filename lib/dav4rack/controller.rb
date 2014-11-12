@@ -55,7 +55,9 @@ module DAV4Rack
       if(resource.exist?)
         response['Etag'] = resource.etag
         response['Content-Type'] = resource.content_type
+        response['Content-Length'] = resource.content_length.to_s
         response['Last-Modified'] = resource.last_modified.httpdate
+        res = resource.head(request, response)
         OK
       else
         NotFound
