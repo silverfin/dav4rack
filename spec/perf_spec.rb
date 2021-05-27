@@ -49,7 +49,7 @@ describe DAV4Rack::Handler do
   end
 
   def url_escape(string)
-    URI.escape(string)
+    Addressable::URI.escape(string)
   end
 
   def response_xml

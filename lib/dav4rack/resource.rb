@@ -518,7 +518,7 @@ module DAV4Rack
     # s:: string
     # Escape URL string
     def url_format
-      ret = URI.escape(public_path)
+      ret = Addressable::URI.escape(public_path)
       if collection? and ret[-1,1] != '/'
         ret += '/'
       end

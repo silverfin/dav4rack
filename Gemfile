@@ -8,6 +8,8 @@ gem 'unicorn'
 gem 'rspec'
 gem 'pry'
 gem 'ruby-prof'
-gem 'ox', github: 'tim-vandecasteele/ox', branch: 'add-raw'
+gem 'ox'
+gem 'addressable', '>= 2.7.0'
+gem 'bson_ext'
 
 gemspec
