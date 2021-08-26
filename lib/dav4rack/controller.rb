@@ -118,8 +118,8 @@ module DAV4Rack
       if(resource.use_compat_mkcol_response?)
         multistatus do |xml|
           xml.response do
-            xml.href gen_url
-            xml.status "#{http_version} #{status.status_line}"
+            xml['D'].href gen_url
+            xml['D'].status "#{http_version} #{status.status_line}"
           end
         end
       else
@@ -161,8 +161,8 @@ module DAV4Rack
             multistatus do |xml|
               xml.response do
                 resource_to_check = status == Created ? dest : resource
-                xml.href "#{scheme}://#{host}:#{port}#{resource_to_check.url_format}"
-                xml.status "#{http_version} #{status.status_line}"
+                xml['D'].href "#{scheme}://#{host}:#{port}#{resource_to_check.url_format}"
+                xml['D'].status "#{http_version} #{status.status_line}"
               end
             end
           else
@@ -264,24 +264,24 @@ module DAV4Rack
           lock_time, locktoken = resource.lock(asked)
           render_xml(:prop) do |xml|
             xml.lockdiscovery do
-              xml.activelock do
+              xml['D'].activelock do
                 if(asked[:scope])
-                  xml.lockscope do
-                    xml.send(asked[:scope])
+                  xml['D'].lockscope do
+                    xml['D'].send(asked[:scope])
                   end
                 end
                 if(asked[:type])
-                  xml.locktype do
-                    xml.send(asked[:type])
+                  xml['D'].locktype do
+                    xml['D'].send(asked[:type])
                   end
                 end
-                xml.depth asked[:depth].to_s
-                xml.timeout lock_time ? "Second-#{lock_time}" : 'infinity'
-                xml.locktoken do
-                  xml.href locktoken
+                xml['D'].depth asked[:depth].to_s
+                xml['D'].timeout lock_time ? "Second-#{lock_time}" : 'infinity'
+                xml['D'].locktoken do
+                  xml['D'].href locktoken
                 end
                 if(asked[:owner])
-                  xml.owner asked[:owner]
+                  xml['D'].owner asked[:owner]
                 end
               end
             end
@@ -292,8 +292,8 @@ module DAV4Rack
           multistatus do |xml|
             e.path_status.each_pair do |path, status|
               xml.response do
-                xml.href path
-                xml.status "#{http_version} #{status.status_line}"
+                xml['D'].href path
+                xml['D'].status "#{http_version} #{status.status_line}"
               end
             end
           end
