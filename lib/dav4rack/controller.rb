@@ -32,7 +32,7 @@ module DAV4Rack
     # s:: string
     # Unescape URL string
     def url_unescape(s)
-      URI.unescape(s)
+      URI::DEFAULT_PARSER.unescape(s)
     end
 
     def add_dav_header
@@ -473,7 +473,7 @@ module DAV4Rack
     def response_errors(xml, errors)
       for path, status in errors
         xml.response do
-          xml.href "#{scheme}://#{host}:#{port}#{URI.escape(path)}"
+          xml.href "#{scheme}://#{host}:#{port}#{URI::DEFAULT_PARSER.escape(path)}"
           xml.status "#{http_version} #{status.status_line}"
         end
       end
