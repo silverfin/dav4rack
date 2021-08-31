@@ -157,6 +157,12 @@ module DAV4Rack
       raise NotImplemented
     end
 
+    # HTTP HEAD request.
+    #
+    # Do nothing. Handler generates all the headers but add this as a hook.
+    def head(request, response)
+    end
+
     # HTTP GET request.
     #
     # Write the content of the resource to the response.body.
