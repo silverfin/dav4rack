@@ -12,8 +12,9 @@ module DAV4Rack
       _force_encoding!(public_path)
       _force_encoding!(path)
       super(public_path, path, request, response, options)
-      @filesystem = Mongo::GridFileSystem.new(Mongoid.database)
-      @collection = Mongoid.database.collection('fs.files')
+      @filesystem = Mongo::Grid::FSBucket.new(Mongoid.default_client.database)
+      @collection = @filesystem.files_collection
+
       if options[:bson]
         @bson = options[:bson]
       elsif path.length <= 1
@@ -22,7 +23,7 @@ module DAV4Rack
       else
         # ファイルかディレクトリが、パラメータだけでは判断できない。ので \/? が必要。
         # だから、ディレクトリと同名のファイルは、作成できない。
-        @bson = @collection.find_one({:filename => /^#{Regexp.escape(file_path)}\/?$/}) rescue nil
+        @bson = @collection.find({:filename => /^#{Regexp.escape(file_path)}\/?$/}).first
       end
     end
 
@@ -122,10 +123,9 @@ module DAV4Rack
         response['Content-Length'] = response.body.size.to_s
         response['Content-Type'] = 'text/html'
       else
-        @filesystem.open(file_path, 'r') do |f|
-          response.body = f
-          response['Content-Type'] = @bson['contentType']
-        end
+        response.body = ""
+        @filesystem.download_to_stream(@bson['_id'], response.body)
+        response['Content-Type'] = @bson['contentType']
       end
 
     end
@@ -155,11 +155,9 @@ module DAV4Rack
 #       File.unlink(file_path)
 #     end
       if collection?
-        @collection.find({:filename => /^#{Regexp.escape(@bson['filename'])}/}).each do |bson|
-          @collection.remove(bson)
-        end
+        @collection.delete_many({:filename => /^#{Regexp.escape(@bson['filename'])}/})
       else
-        @collection.remove(@bson)
+        @collection.find_one_and_delete(@bson)
       end
       NoContent
     end
@@ -200,17 +198,19 @@ module DAV4Rack
         src_name = bson['filename']
         dst_name = dst + src_name.slice(src.length, src_name.length)
 
-        exists = @collection.find_one({:filename => dst_name}) rescue nil
+        exists = @collection.find({:filename => dst_name}).first
 
         return PreconditionFailed if (exists && !overwrite && !collection?)
 
-        @filesystem.open(src_name, "r") do |src|
-        @filesystem.open(dst_name, "w") do |dst|
-          dst.write(src) if src.file_length > 0
-        end
+        @filesystem.open_download_stream(bson['_id']) do |src|
+          io = StringIO.new("")
+          io.write(src.read)
+          io.rewind
+
+          @filesystem.upload_from_stream(dst_name, io)
         end
 
-        @collection.remove(exists) if exists
+        @collection.find_one_and_delete(exists) if exists
       end
 
       collection? ? Created : (exists ? NoContent : Created)
@@ -239,9 +239,9 @@ module DAV4Rack
 
         # http://mongoid.org/docs/persistence/atomic.html
         # http://rubydoc.info/github/mongoid/mongoid/master/Mongoid/Collection#update-instance_method
-        @collection.update({'_id' => bson['_id']}, {'$set' => {'filename' => dst_name}}, :safe => true)
+        @collection.update_one({'_id' => bson['_id']}, {'$set' => {'filename' => dst_name}}, :safe => true)
         
-        @collection.remove(exists) if exists
+        @collection.find_one_and_delete(exists) if exists
       end
 
       collection? ? Created : (exists ? NoContent : Created)
@@ -260,10 +260,10 @@ module DAV4Rack
       # TeamFile : 「/」が付いている
       collection!
 
-      bson = @collection.find_one({:filename => file_path}) rescue nil
+      bson = @collection.find({:filename => file_path}).first
 
       # 0バイトのファイルを作成しディレクトリの代わりとする
-      @filesystem.open(file_path, "w") { |f| } if !bson
+      @filesystem.open_upload_stream(file_path) { |f| } if !bson
  
 #      @@logger.error('make_collection : ' + file_path)
 
@@ -283,13 +283,13 @@ module DAV4Rack
 #       File.unlink(tempfile) rescue nil
 
       # 同名のファイルができないように
-      bson = @collection.find_one({:filename => file_path}) rescue nil
+      bson = @collection.find({:filename => file_path}).first
 
-      @filesystem.open(file_path, "w", :content_type => _content_type(file_path)) { |f| f.write(io) }
+      # @filesystem.open(file_path, "w", :content_type => _content_type(file_path)) { |f| f.write(io) }
+      @filesystem.upload_from_stream(file_path, io, :content_type => _content_type(file_path))
 
       # 同名のファイルができないように
-      @collection.remove(bson) if bson
-
+      @collection.find_one_and_delete(bson) if bson
     end
 
     protected
