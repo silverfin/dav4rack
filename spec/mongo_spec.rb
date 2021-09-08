@@ -7,18 +7,22 @@ require 'nokogiri'
 require 'dav4rack/resources/mongo_resource'
 require 'mongo'
 require 'mongoid'
-require 'rspec'
-require File.join(File.dirname(__FILE__), 'handler_spec.rb')
+
+# require File.join(File.dirname(__FILE__), 'handler_spec.rb')
+
+Mongoid.load!(File.join(File.dirname(__FILE__), 'config', 'mongoid.yml'), :test)
 
 describe DAV4Rack::Handler do
+  METHODS = %w(GET PUT POST DELETE PROPFIND PROPPATCH MKCOL COPY MOVE OPTIONS HEAD LOCK UNLOCK)
+
+  let(:database) { Mongoid.client(:default).database }
 
   before do
-    Mongoid.database = Mongo::Connection.new("localhost").db("test")
     @controller = DAV4Rack::Handler.new(:root => '/webdav', :resource_class => ::DAV4Rack::MongoResource, :root_uri_path => '')
   end
 
   after do
-    Mongoid.database.collection('fs.files').drop
+    Mongoid.purge!
   end
   
   attr_reader :response
@@ -41,7 +45,7 @@ describe DAV4Rack::Handler do
   def render(root_type)
     raise ArgumentError.new 'Expecting block' unless block_given?
     doc = Nokogiri::XML::Builder.new do |xml_base|
-      xml_base.send(root_type.to_s, 'xmlns:D' => 'D:') do
+      xml_base.send(root_type.to_s, 'xmlns:D' => 'DAV:') do
         xml_base.parent.namespace = xml_base.parent.namespace_definitions.first
         xml = xml_base['D']
         yield xml
@@ -51,7 +55,7 @@ describe DAV4Rack::Handler do
   end
  
   def url_escape(string)
-    URI.escape(string)
+    URI::DEFAULT_PARSER.escape(string)
   end
   
   def response_xml
@@ -83,7 +87,7 @@ describe DAV4Rack::Handler do
     render(:propfind) do |xml|
       xml.prop do
         props.each do |prop|
-        xml.send(prop.to_sym)
+          xml['D'].send(prop.to_sym)
         end
       end
     end
@@ -110,8 +114,10 @@ describe DAV4Rack::Handler do
     get('/not_found').should be_not_found
   end
   
-  it 'should not allow directory traversal' do
-    get('/../htdocs').should be_forbidden
+  it 'should translate directory traversal to an absolute path' do
+    put('/test', :input => 'body').should be_created
+    get('/../../../test').should be_ok
+    response.body.should == 'body'
   end
   
   it 'should create a resource and allow its retrieval' do
@@ -265,15 +271,14 @@ describe DAV4Rack::Handler do
     put('/test', :input => 'body').should be_created
     
     xml = render(:lockinfo) do |xml|
-      xml.lockscope { xml.exclusive }
-      xml.locktype { xml.write }
-      xml.owner { xml.href "http://test.de/" }
+      xml['D'].lockscope { xml['D'].exclusive }
+      xml['D'].locktype { xml['D'].write }
+      xml['D'].owner { xml['D'].href "http://test.de/" }
     end
 
     lock('/test', :input => xml)
-    
     response.should be_ok
-    
+
     match = lambda do |pattern|
       response_xml.xpath "/D:prop/D:lockdiscovery/D:activelock#{pattern}"
     end

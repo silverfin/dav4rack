@@ -4,7 +4,6 @@ require 'rubygems'
 require 'dav4rack'
 require 'fileutils'
 require 'nokogiri'
-require 'rspec'
 
 describe DAV4Rack::Handler do
   DOC_ROOT = File.expand_path(File.dirname(__FILE__) + '/htdocs')
@@ -49,7 +48,7 @@ describe DAV4Rack::Handler do
   end
 
   def url_escape(string)
-    URI.escape(string)
+    URI::DEFAULT_PARSER.escape(string)
   end
 
   def response_xml
@@ -81,7 +80,7 @@ describe DAV4Rack::Handler do
     render(:propfind) do |xml|
       xml.prop do
         props.each do |prop|
-        xml.send(prop.to_sym)
+          xml['D'].send(prop.to_sym)
         end
       end
     end
@@ -126,7 +125,7 @@ describe DAV4Rack::Handler do
     open("callgrind.html", "w") do |f|
       # RubyProf::GraphPrinter.new(result).print(f, {})
       # RubyProf::CallTreePrinter.new(result).print(f, :min_percent => 1)
-      RubyProf::GraphHtmlPrinter.new(result).print(f, {})
+      RubyProf::GraphHtmlPrinter.new(result).print(f)
     end
 
     # without ox 9.080960035324097
@@ -138,7 +137,7 @@ describe DAV4Rack::Handler do
       end
     end
 
-    b.real.should == 1
+    b.real.to_i.should == 1
 
 
     multistatus_response('/D:href').first.text.strip.should =~ /http:\/\/localhost(:\d+)?\//

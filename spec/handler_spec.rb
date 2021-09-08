@@ -4,7 +4,6 @@ require 'rubygems'
 require 'dav4rack'
 require 'fileutils'
 require 'nokogiri'
-require 'rspec'
 
 describe DAV4Rack::Handler do
   DOC_ROOT = File.expand_path(File.dirname(__FILE__) + '/htdocs')
@@ -39,7 +38,7 @@ describe DAV4Rack::Handler do
   def render(root_type)
     raise ArgumentError.new 'Expecting block' unless block_given?
     doc = Nokogiri::XML::Builder.new do |xml_base|
-      xml_base.send(root_type.to_s, 'xmlns:D' => 'D:') do
+      xml_base.send(root_type.to_s, 'xmlns:D' => 'DAV:') do
         xml_base.parent.namespace = xml_base.parent.namespace_definitions.first
         xml = xml_base['D']
         yield xml
@@ -49,7 +48,7 @@ describe DAV4Rack::Handler do
   end
  
   def url_escape(string)
-    URI.escape(string)
+    URI::DEFAULT_PARSER.escape(string)
   end
   
   def response_xml
@@ -81,7 +80,7 @@ describe DAV4Rack::Handler do
     render(:propfind) do |xml|
       xml.prop do
         props.each do |prop|
-        xml.send(prop.to_sym)
+        xml['D'].send(prop.to_sym)
         end
       end
     end
@@ -265,9 +264,9 @@ describe DAV4Rack::Handler do
     put('/test', :input => 'body').should be_created
     
     xml = render(:lockinfo) do |xml|
-      xml.lockscope { xml.exclusive }
-      xml.locktype { xml.write }
-      xml.owner { xml.href "http://test.de/" }
+      xml['D'].lockscope { xml['D'].exclusive }
+      xml['D'].locktype { xml['D'].write }
+      xml['D'].owner { xml['D'].href "http://test.de/" }
     end
 
     lock('/test', :input => xml)

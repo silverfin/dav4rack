@@ -75,7 +75,7 @@ module DAV4Rack
         response['Content-Length'] = response.body.bytesize.to_s
       else
         file = Rack::File.new(root)
-        response.body = file
+        response.body = file.get(request.env)[2]
       end
       OK
     end
