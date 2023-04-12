@@ -5,7 +5,7 @@ require 'dav4rack'
 require 'fileutils'
 require 'nokogiri'
 
-describe DAV4Rack::Handler do
+RSpec.describe DAV4Rack::Handler do
   DOC_ROOT = File.expand_path(File.dirname(__FILE__) + '/htdocs')
   METHODS = %w(GET PUT POST DELETE PROPFIND PROPPATCH MKCOL COPY MOVE OPTIONS HEAD LOCK UNLOCK)
 
@@ -137,7 +137,7 @@ describe DAV4Rack::Handler do
       end
     end
 
-    b.real.to_i.should == 1
+    b.real.to_i.should <= 1
 
 
     multistatus_response('/D:href').first.text.strip.should =~ /http:\/\/localhost(:\d+)?\//

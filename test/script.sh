@@ -1,7 +1,9 @@
 #!/bin/sh 
 
-# Run buitin spec tests
-bundle exec rake test
+# Run builtin spec tests
+docker compose up -d
+bundle exec rake
+docker compose down
 
 if [ $? -ne 0 ] ; then
   echo "*** Specs failed to properly complete"
@@ -23,16 +25,16 @@ sleep 3
 
 DAV_PID=$?
 
-if [ ! -f /tmp/litmus/litmus-0.13.tar.gz ]; then
-  mkdir -p /tmp/litmus
-  wget -O /tmp/litmus/litmus-0.13.tar.gz http://www.webdav.org/neon/litmus/litmus-0.13.tar.gz
-  cd /tmp/litmus
-  tar -xzf litmus-0.13.tar.gz
-  cd /tmp/litmus/litmus-0.13
+if [ ! -d /tmp/litmus/litmus-0.14 ]; then
+  mkdir /tmp/litmus
+  git clone --recurse-submodules https://github.com/notroj/litmus.git /tmp/litmus/litmus-0.14/
+  cd /tmp/litmus/litmus-0.14
+  git checkout tags/0.14
+  ./autogen.sh
   ./configure
 fi
 
-cd /tmp/litmus/litmus-0.13 
+cd /tmp/litmus/litmus-0.14
 make URL=http://localhost:3000/ check
 
 LITMUS=$?

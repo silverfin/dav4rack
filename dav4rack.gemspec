@@ -11,7 +11,7 @@ Gem::Specification.new do |s|
   s.require_path = 'lib'
   s.executables << 'dav4rack'
   s.extra_rdoc_files = ['README.rdoc']
-  s.add_dependency 'nokogiri', '>= 1.4.2'
+  s.add_dependency 'nokogiri', '~> 1.14'
   s.add_dependency 'uuidtools', '~> 2.1.1'
   s.add_dependency 'rack', '>= 1.1.0'
   s.add_dependency 'ox', '>= 2.1.0'
