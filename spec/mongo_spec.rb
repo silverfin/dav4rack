@@ -12,7 +12,7 @@ require 'mongoid'
 
 Mongoid.load!(File.join(File.dirname(__FILE__), 'config', 'mongoid.yml'), :test)
 
-describe DAV4Rack::Handler do
+RSpec.describe DAV4Rack::Handler do
   METHODS = %w(GET PUT POST DELETE PROPFIND PROPPATCH MKCOL COPY MOVE OPTIONS HEAD LOCK UNLOCK)
 
   let(:database) { Mongoid.client(:default).database }

@@ -1,8 +1,11 @@
 #!/bin/sh
 
+set -e
+
 rm -rf /tmp/litmus
 mkdir /tmp/litmus
-wget -O /tmp/litmus/litmus-0.13.tar.gz http://www.webdav.org/neon/litmus/litmus-0.13.tar.gz
-tar -C /tmp/litmus -xvzf /tmp/litmus/litmus-0.13.tar.gz
-cd /tmp/litmus/litmus-0.13
+git clone --recurse-submodules https://github.com/notroj/litmus.git /tmp/litmus/litmus-0.14/
+cd /tmp/litmus/litmus-0.14
+git checkout tags/0.14
+./autogen.sh
 ./configure
