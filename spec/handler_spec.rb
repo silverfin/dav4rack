@@ -10,12 +10,12 @@ RSpec.describe DAV4Rack::Handler do
   METHODS = %w(GET PUT POST DELETE PROPFIND PROPPATCH MKCOL COPY MOVE OPTIONS HEAD LOCK UNLOCK)  
   
   before do
-    FileUtils.mkdir(DOC_ROOT) unless File.exists?(DOC_ROOT)
+    FileUtils.mkdir(DOC_ROOT) unless File.exist?(DOC_ROOT)
     @controller = DAV4Rack::Handler.new(:root => DOC_ROOT)
   end
 
   after do
-    FileUtils.rm_rf(DOC_ROOT) if File.exists?(DOC_ROOT)
+    FileUtils.rm_rf(DOC_ROOT) if File.exist?(DOC_ROOT)
   end
   
   attr_reader :response
