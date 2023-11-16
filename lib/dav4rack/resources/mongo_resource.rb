@@ -173,7 +173,7 @@ module DAV4Rack
 #       FileUtils.cp_r("#{file_path}/.", "#{dest.send(:file_path)}/")
 #       OK
 #     else
-#       exists = File.exists?(file_path)
+#       exists = File.exist?(file_path)
 #       if(exists && !overwrite)
 #         PreconditionFailed
 #       else
